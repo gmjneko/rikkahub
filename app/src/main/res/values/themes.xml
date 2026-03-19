@@ -2,4 +2,11 @@
 <resources>
 
 <style name="Theme.Rikkahub" parent="Theme.Material3.DayNight.NoActionBar" />
+
+<style name="Theme.Rikkahub.Splash" parent="Theme.SplashScreen">
+  <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+  <item name="windowSplashScreenAnimationDuration">200</item>
+  <item name="windowSplashScreenBackground">@color/splash_screen_background</item>
+  <item name="postSplashScreenTheme">@style/Theme.Rikkahub</item>
+</style>
 </resources>

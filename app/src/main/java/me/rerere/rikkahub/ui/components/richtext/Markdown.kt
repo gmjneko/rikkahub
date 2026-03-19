@@ -344,7 +344,10 @@ private fun MarkdownNode(
             UnorderedListNode(
                 node = node,
                 content = content,
-                modifier = modifier.padding(vertical = 4.dp),
+                modifier = modifier.padding(
+                    top = 4.dp,
+                    bottom = if (node.nextSibling() != null) 8.dp else 4.dp
+                ),
                 onClickCitation = onClickCitation,
                 level = listLevel
             )
@@ -354,7 +357,10 @@ private fun MarkdownNode(
             OrderedListNode(
                 node = node,
                 content = content,
-                modifier = modifier.padding(vertical = 4.dp),
+                modifier = modifier.padding(
+                    top = 4.dp,
+                    bottom = if (node.nextSibling() != null) 8.dp else 4.dp
+                ),
                 onClickCitation = onClickCitation,
                 level = listLevel
             )
@@ -528,7 +534,16 @@ private fun MarkdownNode(
         MarkdownElementTypes.CODE_SPAN -> {
             val code = node.getTextInNode(content).trim('`')
             Text(
-                text = code, fontFamily = FontFamily.Monospace, modifier = modifier
+                text = code,
+                fontFamily = FontFamily.Monospace,
+                fontSize = LocalTextStyle.current.fontSize * 0.95,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = modifier
+                    .background(
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 4.dp, vertical = 1.dp)
             )
         }
 
@@ -610,6 +625,7 @@ private fun UnorderedListNode(
         else -> "▪ "
     }
 
+    val lastListItem = node.children.findLast { it.type == MarkdownElementTypes.LIST_ITEM }
     Column(
         modifier = modifier.padding(start = (level * 8).dp)
     ) {
@@ -620,7 +636,8 @@ private fun UnorderedListNode(
                     content = content,
                     bulletText = bulletStyle,
                     onClickCitation = onClickCitation,
-                    level = level
+                    level = level,
+                    isLastItem = child === lastListItem
                 )
             }
         }
@@ -635,6 +652,7 @@ private fun OrderedListNode(
     onClickCitation: (String) -> Unit = {},
     level: Int = 0
 ) {
+    val lastListItem = node.children.findLast { it.type == MarkdownElementTypes.LIST_ITEM }
     Column(modifier.padding(start = (level * 8).dp)) {
         var index = 1
         node.children.fastForEach { child ->
@@ -646,7 +664,8 @@ private fun OrderedListNode(
                     content = content,
                     bulletText = numberText,
                     onClickCitation = onClickCitation,
-                    level = level
+                    level = level,
+                    isLastItem = child === lastListItem
                 )
                 index++
             }
@@ -656,11 +675,16 @@ private fun OrderedListNode(
 
 @Composable
 private fun ListItemNode(
-    node: ASTNode, content: String, bulletText: String, onClickCitation: (String) -> Unit = {}, level: Int
+    node: ASTNode, content: String, bulletText: String, onClickCitation: (String) -> Unit = {}, level: Int, isLastItem: Boolean = false
 ) {
-    Column {
-        // 分离列表项的直接内容和嵌套列表
-        val (directContent, nestedLists) = separateContentAndLists(node)
+    val (directContent, nestedLists) = separateContentAndLists(node)
+    Column(
+        modifier = if (nestedLists.isNotEmpty() && !isLastItem) {
+            Modifier.padding(bottom = 8.dp)
+        } else {
+            Modifier
+        }
+    ) {
         // directContent 渲染处理
         if (directContent.isNotEmpty()) {
             Row {
@@ -744,7 +768,7 @@ private fun Paragraph(
     val density = LocalDensity.current
     FlowRow(
         modifier = modifier.then(
-            if (node.nextSibling() != null) Modifier.padding(bottom = LocalTextStyle.current.fontSize.toDp())
+            if (node.nextSibling() != null) Modifier.padding(bottom = 8.dp)
             else Modifier
         )
     ) {
@@ -763,7 +787,7 @@ private fun Paragraph(
                         enableLatexRendering = enableLatexRendering,
                     )
                 }
-            }
+            }.trimLeadingParagraphIndent()
         }
         Text(
             text = annotatedString,
@@ -985,15 +1009,46 @@ private fun AnnotatedString.Builder.appendMarkdownNodeContent(
 
         node.type == MarkdownElementTypes.CODE_SPAN -> {
             val code = node.getTextInNode(content).trim('`')
-            withStyle(
-                SpanStyle(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 0.95.em,
-                    background = colorScheme.secondaryContainer.copy(alpha = 0.2f),
-                )
-            ) {
-                append(code)
-            }
+            val codeId = "code_span:${node.startOffset}"
+            appendInlineContent(codeId, code)
+            val codeFontSizePx = with(density) { (style.fontSize * 0.95f).toPx() }
+            val measuredWidth = android.graphics.Paint().apply {
+                textSize = codeFontSizePx
+                typeface = android.graphics.Typeface.MONOSPACE
+            }.measureText(code)
+            val horizontalPaddingPx = with(density) { 5.dp.toPx() }
+            val width = with(density) { (measuredWidth + horizontalPaddingPx * 2).toSp() }
+            val height = with(density) { (codeFontSizePx * 1.5f).toSp() }
+            val bgColor = colorScheme.secondaryContainer.copy(alpha = 0.5f)
+            val fgColor = colorScheme.onSecondaryContainer
+            inlineContents.putIfAbsent(codeId, InlineTextContent(
+                placeholder = Placeholder(
+                    width = width,
+                    height = height,
+                    placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+                ),
+                children = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                color = bgColor,
+                                shape = RoundedCornerShape(4.dp),
+                            )
+                            .padding(horizontal = 5.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = code,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = with(density) { codeFontSizePx.toSp() },
+                            color = fgColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            ))
         }
 
         node.type == GFMElementTypes.INLINE_MATH -> {
@@ -1047,6 +1102,12 @@ private fun AnnotatedString.Builder.appendMarkdownNodeContent(
             }
         }
     }
+}
+
+private fun AnnotatedString.trimLeadingParagraphIndent(): AnnotatedString {
+    val firstNonSpace = text.indexOfFirst { it != ' ' && it != '\u3000' && it != '\u00A0' }
+    if (firstNonSpace <= 0) return this
+    return subSequence(firstNonSpace, length)
 }
 
 private fun ASTNode.getTextInNode(text: String): String {

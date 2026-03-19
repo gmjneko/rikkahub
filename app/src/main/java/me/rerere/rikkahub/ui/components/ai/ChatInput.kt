@@ -96,9 +96,6 @@ import coil3.compose.AsyncImage
 import com.dokar.sonner.ToastType
 import com.yalantis.ucrop.UCrop
 import com.yalantis.ucrop.UCropActivity
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import me.rerere.ai.provider.Model
@@ -159,7 +156,6 @@ fun ChatInput(
     conversation: Conversation,
     settings: Settings,
     mcpManager: McpManager,
-    hazeState: HazeState,
     enableSearch: Boolean,
     onToggleSearch: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -173,7 +169,7 @@ fun ChatInput(
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
-    val hazeTintColor = MaterialTheme.colorScheme.surfaceContainerLow
+    val bottomBarColor = MaterialTheme.colorScheme.surface
 
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
@@ -374,32 +370,25 @@ fun ChatInput(
     }
 
     Surface(
-        color = Color.Transparent,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        shadowElevation = 8.dp,
+        color = bottomBarColor,
     ) {
         Column(
             modifier = modifier
                 .imePadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.largeIncreased)
-                    .then(
-                        if (settings.displaySetting.enableBlurEffect) Modifier.hazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.ultraThin(containerColor = hazeTintColor)
-                        )
-                        else Modifier
-                    ),
-                shape = MaterialTheme.shapes.largeIncreased,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
                 tonalElevation = 0.dp,
-                color = if (settings.displaySetting.enableBlurEffect) Color.Transparent else hazeTintColor,
+                color = bottomBarColor,
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     if (state.messageContent.isNotEmpty()) {
@@ -412,9 +401,7 @@ fun ChatInput(
                     )
 
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -422,7 +409,7 @@ fun ChatInput(
                             modifier = Modifier
                                 .weight(1f)
                                 .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             // Model Picker
                             ModelSelector(
@@ -485,10 +472,11 @@ fun ChatInput(
                             }
                         }
 
-                        ActionIconButton(
+                        IconButton(
                             onClick = {
                                 expandToggle(ExpandState.Files)
-                            }) {
+                            }
+                        ) {
                             Icon(
                                 imageVector = if (expand == ExpandState.Files) HugeIcons.Cancel01 else HugeIcons.Add01,
                                 contentDescription = stringResource(R.string.more_options)
@@ -498,34 +486,36 @@ fun ChatInput(
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
                                 .combinedClickable(
                                     enabled = loading || !state.isEmpty(),
                                     onClick = {
                                         dismissExpand()
                                         sendMessage()
-                                    }, onLongClick = {
+                                    },
+                                    onLongClick = {
                                         dismissExpand()
                                         sendMessageWithoutAnswer()
                                     }
                                 )
                         ) {
                             val containerColor = when {
-                                loading -> MaterialTheme.colorScheme.errorContainer // 加载时，红色
-                                state.isEmpty() -> MaterialTheme.colorScheme.surfaceContainerHigh // 禁用时(输入为空)，灰色
-                                else -> MaterialTheme.colorScheme.primary // 启用时(输入非空)，绿色/主题色
+                                loading -> MaterialTheme.colorScheme.errorContainer
+                                state.isEmpty() -> MaterialTheme.colorScheme.surfaceContainerHigh
+                                else -> MaterialTheme.colorScheme.primary
                             }
                             val contentColor = when {
                                 loading -> MaterialTheme.colorScheme.onErrorContainer
-                                state.isEmpty() -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) // 禁用时，内容用带透明度的灰色
+                                state.isEmpty() -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                                 else -> MaterialTheme.colorScheme.onPrimary
                             }
                             Surface(
                                 modifier = Modifier.fillMaxSize(),
                                 shape = CircleShape,
                                 color = containerColor,
-                                content = {})
+                                content = {}
+                            )
                             if (loading) {
                                 KeepScreenOn()
                                 Icon(
@@ -559,18 +549,8 @@ fun ChatInput(
                 if (expand == ExpandState.Files) {
                     Surface(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .then(
-                                if (settings.displaySetting.enableBlurEffect) Modifier.hazeEffect(
-                                    state = hazeState,
-                                    style = HazeMaterials.ultraThin()
-                                )
-                                else Modifier
-                            ),
-                        shape = RoundedCornerShape(20.dp),
-                        tonalElevation = 0.dp,
-                        color = if (settings.displaySetting.enableBlurEffect) Color.Transparent else hazeTintColor,
+                            .fillMaxWidth(),
+                        color = bottomBarColor,
                     ) {
                         FilesPicker(
                             conversation = conversation,
@@ -597,26 +577,6 @@ fun ChatInput(
 }
 
 @Composable
-private fun ActionIconButton(
-    onClick: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.size(36.dp),
-        shape = CircleShape,
-        tonalElevation = 0.dp,
-        color = Color.Transparent,
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
-        ) {
-            content()
-        }
-    }
-}
-
-@Composable
 private fun TextInputRow(
     state: ChatInputState,
     onSendMessage: () -> Unit,
@@ -628,116 +588,112 @@ private fun TextInputRow(
         settings.getQuickMessagesOfAssistant(assistant)
     }
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
     ) {
-        if (state.isEditing()) {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ) {
-                Row(
+        Surface(
+            shape = RoundedCornerShape(32.dp),
+            tonalElevation = 4.dp,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            modifier = Modifier.weight(1f)
+        ) {
+            Column {
+                if (state.isEditing()) {
+                    Surface(
+                        tonalElevation = 8.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = stringResource(R.string.editing))
+                            Spacer(Modifier.weight(1f))
+                            Icon(
+                                imageVector = HugeIcons.Cancel01,
+                                contentDescription = stringResource(R.string.cancel_edit),
+                                modifier = Modifier.clickable { state.clearInput() }
+                            )
+                        }
+                    }
+                }
+
+                var isFullScreen by remember { mutableStateOf(false) }
+                val receiveContentListener = remember(
+                    settings.displaySetting.pasteLongTextAsFile, settings.displaySetting.pasteLongTextThreshold
+                ) {
+                    ReceiveContentListener { transferableContent ->
+                        when {
+                            transferableContent.hasMediaType(MediaType.Image) -> {
+                                transferableContent.consume { item ->
+                                    val uri = item.uri
+                                    if (uri != null) {
+                                        state.addImages(
+                                            filesManager.createChatFilesByContents(
+                                                listOf(uri)
+                                            )
+                                        )
+                                    }
+                                    uri != null
+                                }
+                            }
+
+                            settings.displaySetting.pasteLongTextAsFile && transferableContent.hasMediaType(MediaType.Text) -> {
+                                transferableContent.consume { item ->
+                                    val text = item.text?.toString()
+                                    if (text != null && text.length > settings.displaySetting.pasteLongTextThreshold) {
+                                        val document = filesManager.createChatTextFile(text)
+                                        state.addFiles(listOf(document))
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                            }
+
+                            else -> transferableContent
+                        }
+                    }
+                }
+                TextField(
+                    state = state.textContent,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = stringResource(R.string.editing))
-                    Spacer(Modifier.weight(1f))
-                    Icon(
-                        imageVector = HugeIcons.Cancel01,
-                        contentDescription = stringResource(R.string.cancel_edit),
-                        modifier = Modifier.clickable { state.clearInput() }
-                    )
-                }
-            }
-        }
-
-        var isFocused by remember { mutableStateOf(false) }
-        var isFullScreen by remember { mutableStateOf(false) }
-        val receiveContentListener = remember(
-            settings.displaySetting.pasteLongTextAsFile, settings.displaySetting.pasteLongTextThreshold
-        ) {
-            ReceiveContentListener { transferableContent ->
-                when {
-                    transferableContent.hasMediaType(MediaType.Image) -> {
-                        transferableContent.consume { item ->
-                            val uri = item.uri
-                            if (uri != null) {
-                                state.addImages(
-                                    filesManager.createChatFilesByContents(
-                                        listOf(uri)
-                                    )
-                                )
-                            }
-                            uri != null
+                        .contentReceiver(receiveContentListener),
+                    shape = RoundedCornerShape(32.dp),
+                    placeholder = {
+                        Text(stringResource(R.string.chat_input_placeholder))
+                    },
+                    lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 5),
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = if (settings.displaySetting.sendOnEnter) ImeAction.Send else ImeAction.Default
+                    ),
+                    onKeyboardAction = {
+                        if (settings.displaySetting.sendOnEnter && !state.isEmpty()) {
+                            onSendMessage()
                         }
-                    }
-
-                    settings.displaySetting.pasteLongTextAsFile && transferableContent.hasMediaType(MediaType.Text) -> {
-                        transferableContent.consume { item ->
-                            val text = item.text?.toString()
-                            if (text != null && text.length > settings.displaySetting.pasteLongTextThreshold) {
-                                val document = filesManager.createChatTextFile(text)
-                                state.addFiles(listOf(document))
-                                true
-                            } else {
-                                false
-                            }
+                    },
+                    colors = TextFieldDefaults.colors().copy(
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ),
+                    leadingIcon = if (quickMessages.isNotEmpty()) {
+                        {
+                            QuickMessageButton(quickMessages = quickMessages, state = state)
                         }
-                    }
-
-                    else -> transferableContent
-                }
-            }
-        }
-        TextField(
-            state = state.textContent,
-            modifier = Modifier
-                .fillMaxWidth()
-                .contentReceiver(receiveContentListener)
-                .onFocusChanged {
-                    isFocused = it.isFocused
-                },
-            shape = MaterialTheme.shapes.largeIncreased,
-            placeholder = {
-                Text(stringResource(R.string.chat_input_placeholder))
-            },
-            lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 5),
-            keyboardOptions = KeyboardOptions(
-                imeAction = if (settings.displaySetting.sendOnEnter) ImeAction.Send else ImeAction.Default
-            ),
-            onKeyboardAction = {
-                if (settings.displaySetting.sendOnEnter && !state.isEmpty()) {
-                    onSendMessage()
-                }
-            },
-            colors = TextFieldDefaults.colors().copy(
-                unfocusedIndicatorColor = Color.Transparent,
-                focusedIndicatorColor = Color.Transparent,
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
-            ),
-            trailingIcon = {
-                if (isFocused) {
-                    IconButton(
-                        onClick = {
-                            isFullScreen = !isFullScreen
-                        }) {
-                        Icon(HugeIcons.FullScreen, null)
+                    } else null,
+                )
+                if (isFullScreen) {
+                    FullScreenEditor(state = state) {
+                        isFullScreen = false
                     }
                 }
-            },
-            leadingIcon = if (quickMessages.isNotEmpty()) {
-                {
-                    QuickMessageButton(quickMessages = quickMessages, state = state)
-                }
-            } else null,
-        )
-        if (isFullScreen) {
-            FullScreenEditor(state = state) {
-                isFullScreen = false
             }
         }
     }

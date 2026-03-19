@@ -22,7 +22,6 @@ import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,7 +33,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 import kotlinx.datetime.toJavaLocalDateTime
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.provider.Model
@@ -56,7 +54,6 @@ import me.rerere.hugeicons.stroke.VolumeHigh
 import me.rerere.hugeicons.stroke.WebDesign01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.model.MessageNode
-import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.context.LocalTTSState
 import me.rerere.rikkahub.utils.copyMessageToClipboard
@@ -75,48 +72,31 @@ fun ColumnScope.ChatMessageActionButtons(
     onClearTranslation: (UIMessage) -> Unit = {},
 ) {
     val context = LocalContext.current
-    var isPendingDelete by remember { mutableStateOf(false) }
     var showTranslateDialog by remember { mutableStateOf(false) }
-    var showRegenerateConfirm by remember { mutableStateOf(false) }
-
-    LaunchedEffect(isPendingDelete) {
-        if (isPendingDelete) {
-            delay(3000) // 3秒后自动取消
-            isPendingDelete = false
-        }
-    }
 
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = HugeIcons.Copy01,
-            contentDescription = stringResource(R.string.copy),
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable { context.copyMessageToClipboard(message) }
-                .padding(8.dp)
-                .size(16.dp)
-        )
-
-        Icon(
-            imageVector = HugeIcons.Refresh03,
-            contentDescription = stringResource(R.string.regenerate),
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable {
-                    if (message.role == MessageRole.USER) {
-                        showRegenerateConfirm = true
-                    } else {
-                        onRegenerate()
-                    }
-                }
-                .padding(8.dp)
-                .size(16.dp)
-        )
-
         if (message.role == MessageRole.ASSISTANT) {
+            Icon(
+                imageVector = HugeIcons.Copy01,
+                contentDescription = stringResource(R.string.copy),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { context.copyMessageToClipboard(message) }
+                    .padding(8.dp)
+                    .size(16.dp)
+            )
+            Icon(
+                imageVector = HugeIcons.Refresh03,
+                contentDescription = stringResource(R.string.regenerate),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { onRegenerate() }
+                    .padding(8.dp)
+                    .size(16.dp)
+            )
             val tts = LocalTTSState.current
             val settings = LocalSettings.current
             val isSpeaking by tts.isSpeaking.collectAsState()
@@ -167,23 +147,22 @@ fun ColumnScope.ChatMessageActionButtons(
                         .size(16.dp)
                 )
             }
+            Icon(
+                imageVector = HugeIcons.MoreVertical,
+                contentDescription = stringResource(R.string.more_options),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = LocalIndication.current,
+                        onClick = {
+                            onOpenActionSheet()
+                        }
+                    )
+                    .padding(8.dp)
+                    .size(16.dp)
+            )
         }
-
-        Icon(
-            imageVector = HugeIcons.MoreVertical,
-            contentDescription = stringResource(R.string.more_options),
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = LocalIndication.current,
-                    onClick = {
-                        onOpenActionSheet()
-                    }
-                )
-                .padding(8.dp)
-                .size(16.dp)
-        )
 
         ChatMessageBranchSelector(
             node = node,
@@ -208,19 +187,6 @@ fun ColumnScope.ChatMessageActionButtons(
         )
     }
 
-    // Regenerate confirmation dialog
-    RikkaConfirmDialog(
-        show = showRegenerateConfirm,
-        title = stringResource(R.string.regenerate),
-        confirmText = stringResource(R.string.confirm),
-        dismissText = stringResource(R.string.cancel),
-        onConfirm = {
-            showRegenerateConfirm = false
-            onRegenerate()
-        },
-        onDismiss = { showRegenerateConfirm = false },
-        text = { Text(stringResource(R.string.regenerate_confirm_message)) }
-    )
 }
 
 @Composable
