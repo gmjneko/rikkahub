@@ -343,6 +343,18 @@ fun SettingDisplayPage(vm: SettingVM = koinViewModel()) {
                                 )
                             },
                         )
+                        item(
+                            headlineContent = { Text(stringResource(R.string.setting_display_page_use_webview_markdown_title)) },
+                            supportingContent = { Text(stringResource(R.string.setting_display_page_use_webview_markdown_desc)) },
+                            trailingContent = {
+                                Switch(
+                                    checked = displaySetting.useWebViewMarkdownRenderer,
+                                    onCheckedChange = {
+                                        updateDisplaySetting(displaySetting.copy(useWebViewMarkdownRenderer = it))
+                                    }
+                                )
+                            },
+                        )
                         val chatFontFamilyOptions = listOf(
                             ChatFontFamily.DEFAULT to stringResource(R.string.setting_display_page_chat_font_family_default),
                             ChatFontFamily.SERIF to stringResource(R.string.setting_display_page_chat_font_family_serif),

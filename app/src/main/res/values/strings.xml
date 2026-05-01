@@ -574,6 +574,8 @@
   <string name="setting_display_page_enable_blur_effect_title">Enable Blur Effect</string>
   <string name="setting_display_page_enable_latex_rendering_desc">Render mathematical expressions and formulas using LaTeX syntax</string>
   <string name="setting_display_page_enable_latex_rendering_title">Enable LaTeX Rendering</string>
+  <string name="setting_display_page_use_webview_markdown_desc">Use the upstream WebView Markdown interface instead of the customized native Markdown renderer</string>
+  <string name="setting_display_page_use_webview_markdown_title">Use WebView Markdown</string>
   <string name="setting_display_page_enable_message_generation_haptic_effect_desc">Enable haptic feedback when messages are being generated</string>
   <string name="setting_display_page_enable_message_generation_haptic_effect_title">Message Generation Haptic Effect</string>
   <string name="setting_display_page_font_size_preview">At four in the morning, I saw the begonia flowers still awake. I am often like this — lying awake alone in the quiet night, thinking: if someone is thinking of me at this moment, that would be wonderful.</string>

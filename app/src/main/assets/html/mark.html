@@ -298,8 +298,26 @@
             }
         }
 
+        function notifyMarkdownHeight() {
+            if (window.AndroidInterface && window.AndroidInterface.updateHeight) {
+                const height = Math.max(
+                    document.body.scrollHeight,
+                    document.documentElement.scrollHeight,
+                    document.body.offsetHeight,
+                    document.documentElement.offsetHeight
+                );
+                window.AndroidInterface.updateHeight(height);
+            }
+        }
+
+        window.notifyMarkdownHeight = notifyMarkdownHeight;
+
         // Call the render function
-        renderMarkdown();
+        renderMarkdown().finally(() => {
+            notifyMarkdownHeight();
+            setTimeout(notifyMarkdownHeight, 100);
+            setTimeout(notifyMarkdownHeight, 500);
+        });
     </script>
     <script nomodule>
         alert('您的系统WebView不支持 ES Modules，请升级WebView或者系统!');

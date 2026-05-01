@@ -1009,46 +1009,18 @@ private fun AnnotatedString.Builder.appendMarkdownNodeContent(
 
         node.type == MarkdownElementTypes.CODE_SPAN -> {
             val code = node.getTextInNode(content).trim('`')
-            val codeId = "code_span:${node.startOffset}"
-            appendInlineContent(codeId, code)
-            val codeFontSizePx = with(density) { (style.fontSize * 0.95f).toPx() }
-            val measuredWidth = android.graphics.Paint().apply {
-                textSize = codeFontSizePx
-                typeface = android.graphics.Typeface.MONOSPACE
-            }.measureText(code)
-            val horizontalPaddingPx = with(density) { 5.dp.toPx() }
-            val width = with(density) { (measuredWidth + horizontalPaddingPx * 2).toSp() }
-            val height = with(density) { (codeFontSizePx * 1.5f).toSp() }
-            val bgColor = colorScheme.secondaryContainer.copy(alpha = 0.5f)
-            val fgColor = colorScheme.onSecondaryContainer
-            inlineContents.putIfAbsent(codeId, InlineTextContent(
-                placeholder = Placeholder(
-                    width = width,
-                    height = height,
-                    placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
-                ),
-                children = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                color = bgColor,
-                                shape = RoundedCornerShape(4.dp),
-                            )
-                            .padding(horizontal = 5.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = code,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = with(density) { codeFontSizePx.toSp() },
-                            color = fgColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            ))
+            withStyle(
+                SpanStyle(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 0.95.em,
+                    color = colorScheme.onSecondaryContainer,
+                    background = colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                )
+            ) {
+                append("\u2009")
+                append(code)
+                append("\u2009")
+            }
         }
 
         node.type == GFMElementTypes.INLINE_MATH -> {

@@ -372,7 +372,7 @@ fun ChatInput(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        shadowElevation = 8.dp,
+        shadowElevation = 6.dp,
         color = bottomBarColor,
     ) {
         Column(

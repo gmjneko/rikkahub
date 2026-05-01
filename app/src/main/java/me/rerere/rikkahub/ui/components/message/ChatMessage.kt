@@ -88,7 +88,8 @@ import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.data.model.replaceRegexes
-import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
+import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock as NativeMarkdownBlock
+import me.rerere.rikkahub.ui.components.richtext.MarkdownWebBlock
 import me.rerere.rikkahub.ui.components.richtext.ZoomableAsyncImage
 import me.rerere.rikkahub.ui.components.richtext.buildMarkdownPreviewHtml
 import me.rerere.rikkahub.ui.components.ui.ChainOfThought
@@ -469,13 +470,14 @@ private fun MessagePartsBlock(
                                 onMore = onUserMessageMore,
                             ) {
                                 Column(modifier = Modifier.padding(8.dp)) {
-                                    MarkdownBlock(
+                                    MessageMarkdownBlock(
                                         content = part.text.replaceRegexes(
                                             assistant = assistant,
                                             scope = AssistantAffectScope.USER,
                                             visual = true,
                                         ),
-                                        onClickCitation = handleClickCitation
+                                        onClickCitation = handleClickCitation,
+                                        useWebViewRenderer = settings.displaySetting.useWebViewMarkdownRenderer,
                                     )
                                 }
                             }
@@ -488,18 +490,19 @@ private fun MessagePartsBlock(
                                         tonalElevation = 2.dp,
                                     ) {
                                         Column(modifier = Modifier.padding(8.dp)) {
-                                            MarkdownBlock(
+                                            MessageMarkdownBlock(
                                                 content = part.text.replaceRegexes(
                                                     assistant = assistant,
                                                     scope = AssistantAffectScope.ASSISTANT,
                                                     visual = true,
                                                 ),
                                                 onClickCitation = handleClickCitation,
+                                                useWebViewRenderer = settings.displaySetting.useWebViewMarkdownRenderer,
                                             )
                                         }
                                     }
                                 } else {
-                                    MarkdownBlock(
+                                    MessageMarkdownBlock(
                                         content = part.text.replaceRegexes(
                                             assistant = assistant,
                                             scope = AssistantAffectScope.ASSISTANT,
@@ -507,7 +510,8 @@ private fun MessagePartsBlock(
                                         ),
                                         onClickCitation = handleClickCitation,
                                         modifier = Modifier
-                                            .animateContentSize()
+                                            .animateContentSize(),
+                                        useWebViewRenderer = settings.displaySetting.useWebViewMarkdownRenderer,
                                     )
                                 }
                             }
@@ -717,5 +721,26 @@ private fun MessagePartsBlock(
                 Text(stringResource(R.string.citations_count, annotations.size))
             }
         }
+    }
+}
+
+@Composable
+private fun MessageMarkdownBlock(
+    content: String,
+    modifier: Modifier = Modifier,
+    onClickCitation: (String) -> Unit = {},
+    useWebViewRenderer: Boolean,
+) {
+    if (useWebViewRenderer) {
+        MarkdownWebBlock(
+            content = content,
+            modifier = modifier,
+        )
+    } else {
+        NativeMarkdownBlock(
+            content = content,
+            modifier = modifier,
+            onClickCitation = onClickCitation,
+        )
     }
 }
