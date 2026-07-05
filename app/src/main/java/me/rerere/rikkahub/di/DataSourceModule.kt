@@ -14,7 +14,6 @@ import kotlinx.serialization.json.Json
 import me.rerere.ai.provider.ProviderManager
 import me.rerere.common.http.AcceptLanguageBuilder
 import me.rerere.rikkahub.BuildConfig
-import me.rerere.rikkahub.data.ai.AIRequestInterceptor
 import me.rerere.rikkahub.data.ai.RequestLoggingInterceptor
 import me.rerere.rikkahub.data.ai.transformers.AssistantTemplateLoader
 import me.rerere.rikkahub.data.ai.GenerationHandler
@@ -200,7 +199,6 @@ val dataSourceModule = module {
                 }
             }
             .addNetworkInterceptor(RequestLoggingInterceptor())
-            .addInterceptor(AIRequestInterceptor(remoteConfig = get()))
             .addInterceptor(HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.HEADERS
             })
