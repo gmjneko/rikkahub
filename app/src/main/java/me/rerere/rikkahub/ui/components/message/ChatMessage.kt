@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -169,7 +170,11 @@ fun ChatMessage(
                 model = model,
                 onToolApproval = onToolApproval,
                 onToolAnswer = onToolAnswer,
-                onUserMessageClick = if (message.role == MessageRole.USER) onEdit else null,
+                onUserMessageLongClick = if (message.role == MessageRole.USER) {
+                    { showActionsSheet = true }
+                } else {
+                    null
+                },
             )
 
             message.translation?.let { translation ->
@@ -202,6 +207,7 @@ fun ChatMessage(
                     onOpenActionSheet = {
                         showActionsSheet = true
                     },
+                    showPrimaryActions = message.role != MessageRole.USER,
                     onTranslate = onTranslate,
                     onClearTranslation = onClearTranslation
                 )
@@ -221,6 +227,7 @@ fun ChatMessage(
     if (showActionsSheet) {
         ChatMessageActionsSheet(
             message = message,
+            onRegenerate = onRegenerate,
             onEdit = onEdit,
             onDelete = onDelete,
             onShare = onShare,
@@ -293,7 +300,7 @@ private fun MessagePartsBlock(
     loading: Boolean,
     onToolApproval: ((toolCallId: String, approved: Boolean, reason: String) -> Unit)? = null,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
-    onUserMessageClick: (() -> Unit)? = null,
+    onUserMessageLongClick: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
@@ -381,10 +388,16 @@ private fun MessagePartsBlock(
                         val textContent = @Composable {
                             if (role == MessageRole.USER) {
                                 Surface(
-                                    modifier = Modifier.animateContentSize(),
+                                    modifier = Modifier
+                                        .animateContentSize()
+                                        .combinedClickable(
+                                            onClick = {},
+                                            onLongClick = {
+                                                onUserMessageLongClick?.invoke()
+                                            }
+                                        ),
                                     shape = RoundedCornerShape(16.dp),
                                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = settings.displaySetting.bubbleOpacity),
-                                    onClick = { onUserMessageClick?.invoke() },
                                 ) {
                                     Column(modifier = Modifier.padding(8.dp)) {
                                         MessageMarkdownBlock(

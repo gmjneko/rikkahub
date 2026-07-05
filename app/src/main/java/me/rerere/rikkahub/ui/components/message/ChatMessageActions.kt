@@ -72,6 +72,7 @@ fun ColumnScope.ChatMessageActionButtons(
     onUpdate: (MessageNode) -> Unit,
     onRegenerate: () -> Unit,
     onOpenActionSheet: () -> Unit,
+    showPrimaryActions: Boolean = true,
     onTranslate: ((UIMessage, Locale) -> Unit)? = null,
     onClearTranslation: (UIMessage) -> Unit = {},
 ) {
@@ -94,33 +95,35 @@ fun ColumnScope.ChatMessageActionButtons(
     ) {
         val actionIconColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-        Icon(
-            imageVector = HugeIcons.Copy01,
-            contentDescription = stringResource(R.string.copy),
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable { context.copyMessageToClipboard(message) }
-                .padding(8.dp)
-                .size(16.dp),
-            tint = actionIconColor
-        )
+        if (showPrimaryActions) {
+            Icon(
+                imageVector = HugeIcons.Copy01,
+                contentDescription = stringResource(R.string.copy),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { context.copyMessageToClipboard(message) }
+                    .padding(8.dp)
+                    .size(16.dp),
+                tint = actionIconColor
+            )
 
-        Icon(
-            imageVector = HugeIcons.Refresh03,
-            contentDescription = stringResource(R.string.regenerate),
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable {
-                    if (message.role == MessageRole.USER) {
-                        showRegenerateConfirm = true
-                    } else {
-                        onRegenerate()
+            Icon(
+                imageVector = HugeIcons.Refresh03,
+                contentDescription = stringResource(R.string.regenerate),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable {
+                        if (message.role == MessageRole.USER) {
+                            showRegenerateConfirm = true
+                        } else {
+                            onRegenerate()
+                        }
                     }
-                }
-                .padding(8.dp)
-                .size(16.dp),
-            tint = actionIconColor
-        )
+                    .padding(8.dp)
+                    .size(16.dp),
+                tint = actionIconColor
+            )
+        }
 
         if (message.role == MessageRole.ASSISTANT) {
             val tts = LocalTTSState.current
@@ -175,22 +178,24 @@ fun ColumnScope.ChatMessageActionButtons(
             }
         }
 
-        Icon(
-            imageVector = HugeIcons.MoreVertical,
-            contentDescription = stringResource(R.string.more_options),
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = LocalIndication.current,
-                    onClick = {
-                        onOpenActionSheet()
-                    }
-                )
-                .padding(8.dp)
-                .size(16.dp),
-            tint = actionIconColor
-        )
+        if (showPrimaryActions) {
+            Icon(
+                imageVector = HugeIcons.MoreVertical,
+                contentDescription = stringResource(R.string.more_options),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = LocalIndication.current,
+                        onClick = {
+                            onOpenActionSheet()
+                        }
+                    )
+                    .padding(8.dp)
+                    .size(16.dp),
+                tint = actionIconColor
+            )
+        }
 
         ChatMessageBranchSelector(
             node = node,
@@ -243,6 +248,7 @@ fun ColumnScope.ChatMessageActionButtons(
 fun ChatMessageActionsSheet(
     message: UIMessage,
     model: Model?,
+    onRegenerate: () -> Unit,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
     onShare: () -> Unit,
@@ -253,6 +259,8 @@ fun ChatMessageActionsSheet(
     onWebViewPreview: () -> Unit,
     onDismissRequest: () -> Unit
 ) {
+    var showRegenerateConfirm by remember { mutableStateOf(false) }
+
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)),
@@ -264,6 +272,37 @@ fun ChatMessageActionsSheet(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // Regenerate
+            Card(
+                onClick = {
+                    if (message.role == MessageRole.USER) {
+                        showRegenerateConfirm = true
+                    } else {
+                        onDismissRequest()
+                        onRegenerate()
+                    }
+                },
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = HugeIcons.Refresh03,
+                        contentDescription = null,
+                        modifier = Modifier.padding(4.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.regenerate),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+            }
+
             // Select and Copy
             Card(
                 onClick = {
@@ -474,4 +513,18 @@ fun ChatMessageActionsSheet(
             }
         }
     }
+
+    RikkaConfirmDialog(
+        show = showRegenerateConfirm,
+        title = stringResource(R.string.regenerate),
+        confirmText = stringResource(R.string.confirm),
+        dismissText = stringResource(R.string.cancel),
+        onConfirm = {
+            showRegenerateConfirm = false
+            onDismissRequest()
+            onRegenerate()
+        },
+        onDismiss = { showRegenerateConfirm = false },
+        text = { Text(stringResource(R.string.regenerate_confirm_message)) }
+    )
 }
