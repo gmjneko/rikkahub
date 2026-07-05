@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -32,9 +33,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import me.rerere.ai.provider.BuiltInTools
@@ -67,7 +68,6 @@ fun SearchPickerButton(
     model: Model?,
 ) {
     var showSearchPicker by remember { mutableStateOf(false) }
-    val currentService = settings.searchServices.getOrNull(settings.searchServiceSelected)
 
     ToggleSurface(
         modifier = modifier,
@@ -91,16 +91,10 @@ fun SearchPickerButton(
                         imageVector = HugeIcons.AiSearch02,
                         contentDescription = stringResource(R.string.use_web_search),
                     )
-                } else if (enableSearch && currentService != null) {
-                    AutoAIIcon(
-                        name = currentService.displayName,
-                        color = Color.Transparent,
-                        contentPadding = 0.dp
-                    )
                 } else {
-                    Icon(
-                        imageVector = HugeIcons.Search01,
+                    SearchIcon(
                         contentDescription = stringResource(R.string.use_web_search),
+                        bold = enableSearch
                     )
                 }
             }
@@ -143,6 +137,27 @@ fun SearchPickerButton(
                     }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun SearchIcon(
+    contentDescription: String,
+    bold: Boolean,
+    boldOffset: Dp = 0.4.dp,
+) {
+    Box(contentAlignment = Alignment.Center) {
+        Icon(
+            imageVector = HugeIcons.Search01,
+            contentDescription = contentDescription,
+        )
+        if (bold) {
+            Icon(
+                imageVector = HugeIcons.Search01,
+                contentDescription = null,
+                modifier = Modifier.offset(x = boldOffset)
+            )
         }
     }
 }
