@@ -40,8 +40,8 @@ object ExaSearchService : SearchService<SearchServiceOptions.ExaOptions> {
         }
     }
 
-    override val parameters: InputSchema?
-        get() = InputSchema.Obj(
+    override fun parameters(options: SearchServiceOptions.ExaOptions): InputSchema? =
+        InputSchema.Obj(
             properties = buildJsonObject {
                 put("query", buildJsonObject {
                     put("type", "string")
@@ -60,7 +60,7 @@ object ExaSearchService : SearchService<SearchServiceOptions.ExaOptions> {
             required = listOf("query")
         )
 
-    override val scrapingParameters: InputSchema? = null
+    override fun scrapingParameters(options: SearchServiceOptions.ExaOptions): InputSchema? = null
 
     override suspend fun search(
         params: JsonObject,
@@ -105,7 +105,8 @@ object ExaSearchService : SearchService<SearchServiceOptions.ExaOptions> {
                                 url = it.url,
                                 text = it.text ?: ""
                             )
-                        }
+                        },
+                        images = response.results.mapNotNull { it.image?.takeIf { url -> url.isNotBlank() } },
                     ))
             } else {
                 println(response.body.string())
@@ -176,5 +177,7 @@ object ExaSearchService : SearchService<SearchServiceOptions.ExaOptions> {
         val author: String?,
         @SerialName("text")
         val text: String? = null,
+        @SerialName("image")
+        val image: String? = null,
     )
 }

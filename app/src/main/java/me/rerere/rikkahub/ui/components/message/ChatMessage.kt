@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,14 +14,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -46,17 +43,14 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastForEach
@@ -76,10 +70,7 @@ import me.rerere.ai.ui.UIMessageAnnotation
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.isEmptyUIMessage
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.Copy01
-import me.rerere.hugeicons.stroke.Edit01
 import me.rerere.hugeicons.stroke.File02
-import me.rerere.hugeicons.stroke.MoreVertical
 import me.rerere.hugeicons.stroke.MusicNote03
 import me.rerere.hugeicons.stroke.Video01
 import me.rerere.rikkahub.R
@@ -97,15 +88,14 @@ import me.rerere.rikkahub.ui.components.ui.Favicon
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.modifier.shimmer
 import me.rerere.rikkahub.ui.context.LocalSettings
+import me.rerere.rikkahub.ui.theme.LocalChatFontFamily
+import me.rerere.rikkahub.ui.theme.rememberChatFontFamily
 import me.rerere.rikkahub.ui.theme.extendColors
-import me.rerere.rikkahub.data.datastore.ChatFontFamily
 import me.rerere.rikkahub.utils.JsonInstant
 import me.rerere.rikkahub.utils.base64Encode
-import me.rerere.rikkahub.utils.copyMessageToClipboard
 import me.rerere.rikkahub.utils.openUrl
 import me.rerere.rikkahub.utils.urlDecode
 import java.util.Locale
-import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
@@ -131,25 +121,21 @@ fun ChatMessage(
 ) {
     val message = node.messages[node.selectIndex]
     val settings = LocalSettings.current.displaySetting
+    val chatFontFamily = LocalChatFontFamily.current ?: rememberChatFontFamily(settings)
     val textStyle = LocalTextStyle.current.copy(
         fontSize = LocalTextStyle.current.fontSize * settings.fontSizeRatio,
         lineHeight = LocalTextStyle.current.lineHeight * settings.fontSizeRatio,
-        fontFamily = when (settings.chatFontFamily) {
-            ChatFontFamily.DEFAULT -> FontFamily.Default
-            ChatFontFamily.SERIF -> FontFamily.Serif
-            ChatFontFamily.MONOSPACE -> FontFamily.Monospace
-        }
+        fontFamily = chatFontFamily
     )
     var showActionsSheet by remember { mutableStateOf(false) }
     var showSelectCopySheet by remember { mutableStateOf(false) }
     val navController = LocalNavController.current
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
-    val headerSpacing = if (message.role == MessageRole.USER) 2.dp else 6.dp
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = if (message.role == MessageRole.USER) Alignment.End else Alignment.Start,
-        verticalArrangement = Arrangement.spacedBy(headerSpacing)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         if (!message.parts.isEmptyUIMessage()) {
             Row(
@@ -183,17 +169,7 @@ fun ChatMessage(
                 model = model,
                 onToolApproval = onToolApproval,
                 onToolAnswer = onToolAnswer,
-                onUserMessageCopy = if (message.role == MessageRole.USER) {
-                    { context.copyMessageToClipboard(message) }
-                } else {
-                    null
-                },
-                onUserMessageEdit = if (message.role == MessageRole.USER) onEdit else null,
-                onUserMessageMore = if (message.role == MessageRole.USER) {
-                    { showActionsSheet = true }
-                } else {
-                    null
-                },
+                onUserMessageClick = if (message.role == MessageRole.USER) onEdit else null,
             )
 
             message.translation?.let { translation ->
@@ -232,9 +208,15 @@ fun ChatMessage(
             }
         }
 
+        EditedFilesList(
+            parts = message.parts,
+            assistant = assistant,
+        )
+
         ProvideTextStyle(textStyle) {
             ChatMessageNerdLine(message = message)
         }
+
     }
     if (showActionsSheet) {
         ChatMessageActionsSheet(
@@ -280,91 +262,23 @@ fun ChatMessage(
 }
 
 @Composable
-private fun UserMessageContextMenu(
-    onCopy: () -> Unit,
-    onEdit: (() -> Unit)? = null,
-    onMore: (() -> Unit)? = null,
-    content: @Composable () -> Unit,
+private fun MessageMarkdownBlock(
+    content: String,
+    modifier: Modifier = Modifier,
+    onClickCitation: (String) -> Unit = {},
+    useWebViewRenderer: Boolean,
 ) {
-    val hapticFeedback = LocalHapticFeedback.current
-    var menuExpanded by remember { mutableStateOf(false) }
-    var menuAnchor by remember { mutableStateOf(IntOffset.Zero) }
-
-    Box {
-        Surface(
-            modifier = Modifier
-                .animateContentSize()
-                .pointerInput(onCopy, onEdit, onMore) {
-                    detectTapGestures(
-                        onLongPress = { pressOffset ->
-                            menuAnchor = IntOffset(
-                                x = pressOffset.x.roundToInt(),
-                                y = pressOffset.y.roundToInt()
-                            )
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                            menuExpanded = true
-                        }
-                    )
-                },
-            shape = MaterialTheme.shapes.medium,
-            tonalElevation = 2.dp,
-        ) {
-            content()
-        }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .offset { menuAnchor }
-        ) {
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-                shape = RoundedCornerShape(15.dp)
-            ) {
-                DropdownMenuItem(
-                    text = { Text(text = stringResource(R.string.copy)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = HugeIcons.Copy01,
-                            contentDescription = null
-                        )
-                    },
-                    onClick = {
-                        menuExpanded = false
-                        onCopy()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text(text = stringResource(R.string.edit)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = HugeIcons.Edit01,
-                            contentDescription = null
-                        )
-                    },
-                    onClick = {
-                        menuExpanded = false
-                        onEdit?.invoke()
-                    },
-                    enabled = onEdit != null
-                )
-                DropdownMenuItem(
-                    text = { Text(text = stringResource(R.string.more_options)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = HugeIcons.MoreVertical,
-                            contentDescription = null
-                        )
-                    },
-                    onClick = {
-                        menuExpanded = false
-                        onMore?.invoke()
-                    },
-                    enabled = onMore != null
-                )
-            }
-        }
+    if (useWebViewRenderer) {
+        MarkdownWebBlock(
+            content = content,
+            modifier = modifier,
+        )
+    } else {
+        NativeMarkdownBlock(
+            content = content,
+            modifier = modifier,
+            onClickCitation = onClickCitation,
+        )
     }
 }
 
@@ -379,9 +293,7 @@ private fun MessagePartsBlock(
     loading: Boolean,
     onToolApproval: ((toolCallId: String, approved: Boolean, reason: String) -> Unit)? = null,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
-    onUserMessageCopy: (() -> Unit)? = null,
-    onUserMessageEdit: (() -> Unit)? = null,
-    onUserMessageMore: (() -> Unit)? = null,
+    onUserMessageClick: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
@@ -432,6 +344,9 @@ private fun MessagePartsBlock(
                         modifier = Modifier.animateContentSize(),
                         steps = block.steps,
                         collapsedAdaptiveWidth = isReasoningOnlyBlock,
+                        cardColors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
+                        ),
                     ) { step ->
                         when (step) {
                             is ThinkingStep.ReasoningStep -> {
@@ -463,31 +378,32 @@ private fun MessagePartsBlock(
             is MessagePartBlock.ContentBlock -> key(block.index) {
                 when (val part = block.part) {
                     is UIMessagePart.Text -> {
-                        if (role == MessageRole.USER) {
-                            UserMessageContextMenu(
-                                onCopy = { onUserMessageCopy?.invoke() },
-                                onEdit = onUserMessageEdit,
-                                onMore = onUserMessageMore,
-                            ) {
-                                Column(modifier = Modifier.padding(8.dp)) {
-                                    MessageMarkdownBlock(
-                                        content = part.text.replaceRegexes(
-                                            assistant = assistant,
-                                            scope = AssistantAffectScope.USER,
-                                            visual = true,
-                                        ),
-                                        onClickCitation = handleClickCitation,
-                                        useWebViewRenderer = settings.displaySetting.useWebViewMarkdownRenderer,
-                                    )
+                        val textContent = @Composable {
+                            if (role == MessageRole.USER) {
+                                Surface(
+                                    modifier = Modifier.animateContentSize(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = settings.displaySetting.bubbleOpacity),
+                                    onClick = { onUserMessageClick?.invoke() },
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        MessageMarkdownBlock(
+                                            content = part.text.replaceRegexes(
+                                                assistant = assistant,
+                                                scope = AssistantAffectScope.USER,
+                                                visual = true,
+                                            ),
+                                            onClickCitation = handleClickCitation,
+                                            useWebViewRenderer = settings.displaySetting.useWebViewMarkdownRenderer,
+                                        )
+                                    }
                                 }
-                            }
-                        } else {
-                            SelectionContainer {
+                            } else {
                                 if (settings.displaySetting.showAssistantBubble) {
                                     Surface(
                                         modifier = Modifier.animateContentSize(),
-                                        shape = MaterialTheme.shapes.medium,
-                                        tonalElevation = 2.dp,
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
                                     ) {
                                         Column(modifier = Modifier.padding(8.dp)) {
                                             MessageMarkdownBlock(
@@ -514,6 +430,18 @@ private fun MessagePartsBlock(
                                         useWebViewRenderer = settings.displaySetting.useWebViewMarkdownRenderer,
                                     )
                                 }
+                            }
+                        }
+
+                        // 流式生成期间不启用 SelectionContainer：Markdown 在不断重渲染，
+                        // 内部可选择的 Text 会频繁注册/注销，与 Compose 选择工具栏在绘制阶段
+                        // 对 selectable 列表的排序产生并发修改，导致 ConcurrentModificationException。
+                        // 生成结束后内容稳定，再启用文本选择。
+                        if (loading) {
+                            textContent()
+                        } else {
+                            SelectionContainer {
+                                textContent()
                             }
                         }
                     }
@@ -721,26 +649,5 @@ private fun MessagePartsBlock(
                 Text(stringResource(R.string.citations_count, annotations.size))
             }
         }
-    }
-}
-
-@Composable
-private fun MessageMarkdownBlock(
-    content: String,
-    modifier: Modifier = Modifier,
-    onClickCitation: (String) -> Unit = {},
-    useWebViewRenderer: Boolean,
-) {
-    if (useWebViewRenderer) {
-        MarkdownWebBlock(
-            content = content,
-            modifier = modifier,
-        )
-    } else {
-        NativeMarkdownBlock(
-            content = content,
-            modifier = modifier,
-            onClickCitation = onClickCitation,
-        )
     }
 }

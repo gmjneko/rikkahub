@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonArrayBuilder
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
@@ -254,7 +255,7 @@ class ChatCompletionsAPI(
         val host = providerSetting.baseUrl.toHttpUrl().host
         return buildJsonObject {
             put("model", params.model.modelId)
-            put("messages", buildMessages(messages))
+            put("messages", buildMessages(messages, providerSetting.includeHistoryReasoning))
 
             if (isModelAllowTemperature(params.model)) {
                 if (params.temperature != null) put("temperature", params.temperature)
@@ -354,6 +355,10 @@ class ChatCompletionsAPI(
                         }
                     }
 
+                    "aiping.cn" -> {
+                        put("enable_thinking", level.isEnabled)
+                    }
+
                     "open.bigmodel.cn" -> {
                         put("thinking", buildJsonObject {
                             put("type", if (!level.isEnabled) "disabled" else "enabled")
@@ -371,6 +376,29 @@ class ChatCompletionsAPI(
                             put("type", if (!level.isEnabled) "disabled" else "enabled")
                         })
                         if (level.isEnabled && level != ReasoningLevel.AUTO) {
+                            put("reasoning_effort", level.effort)
+                        }
+                    }
+
+                    "integrate.api.nvidia.com" -> {
+                        if ("deepseek-v4" in params.model.modelId.lowercase()) {
+                            if (level != ReasoningLevel.AUTO) {
+                                val effort = when (level) {
+                                    ReasoningLevel.XHIGH -> "max"
+                                    ReasoningLevel.OFF -> "none"
+                                    else -> "high"
+                                }
+                                put("reasoning_effort", effort)
+                            }
+                        } else {
+                            if (level != ReasoningLevel.AUTO) {
+                                put("reasoning_effort", if (level.effort == "none") "low" else level.effort)
+                            }
+                        }
+                    }
+
+                    "opencode.ai" -> {
+                        if (level != ReasoningLevel.AUTO) {
                             put("reasoning_effort", level.effort)
                         }
                     }
@@ -411,12 +439,12 @@ class ChatCompletionsAPI(
         return !ModelRegistry.OPENAI_O_MODELS.match(model.modelId) && !ModelRegistry.GPT_5.match(model.modelId)
     }
 
-    private fun buildMessages(messages: List<UIMessage>) = buildJsonArray {
+    private fun buildMessages(messages: List<UIMessage>, includeHistoryReasoning: Boolean = true) = buildJsonArray {
         val filteredMessages = messages.filter { it.isValidToUpload() }
 
         filteredMessages.forEach { message ->
             if (message.role == MessageRole.ASSISTANT) {
-                addAssistantMessages(message, includeReasoning = true)
+                addAssistantMessages(message, includeReasoning = includeHistoryReasoning)
             } else {
                 addNonAssistantMessage(message)
             }
@@ -460,9 +488,7 @@ class ChatCompletionsAPI(
                             put("role", "tool")
                             put("name", tool.toolName)
                             put("tool_call_id", tool.toolCallId)
-                            put(
-                                "content",
-                                tool.output.filterIsInstance<UIMessagePart.Text>().joinToString("\n") { it.text })
+                            put("content", tool.toToolResultContent())
                         })
                     }
                 }
@@ -552,7 +578,8 @@ class ChatCompletionsAPI(
                             put("type", "function")
                             put("function", buildJsonObject {
                                 put("name", tool.toolName)
-                                put("arguments", tool.input)
+                                // 使用 inputAsJson() 归一化，避免流式中断导致的残缺 JSON 被发送
+                                put("arguments", tool.inputAsJson().toString())
                             })
                         })
                     }
@@ -600,6 +627,73 @@ class ChatCompletionsAPI(
             }
         })
     }
+
+    private fun UIMessagePart.Tool.toToolResultContent(): JsonElement =
+        if (output.none { it is UIMessagePart.Image || it is UIMessagePart.Video }) {
+            JsonPrimitive(output.filterIsInstance<UIMessagePart.Text>().joinToString("\n") { it.text })
+        } else {
+            buildJsonArray {
+                output.forEach { part ->
+                    when (part) {
+                        is UIMessagePart.Text -> {
+                            if (part.text.isNotBlank()) {
+                                add(buildJsonObject {
+                                    put("type", "text")
+                                    put("text", part.text)
+                                })
+                            }
+                        }
+
+                        is UIMessagePart.Image -> {
+                            add(buildJsonObject {
+                                part.encodeBase64().onSuccess { encodedImage ->
+                                    put("type", "image_url")
+                                    put("image_url", buildJsonObject {
+                                        put("url", encodedImage.base64)
+                                    })
+                                }.onFailure {
+                                    Log.w(TAG, "encode tool result image failed: ${part.url}", it)
+                                    put("type", "text")
+                                    put("text", "Error: Failed to encode image to base64")
+                                }
+                            })
+                        }
+
+                        is UIMessagePart.Video -> {
+                            add(buildJsonObject {
+                                part.encodeBase64().onSuccess { encodedVideo ->
+                                    put("type", "video_url")
+                                    put("video_url", buildJsonObject {
+                                        put("url", encodedVideo)
+                                    })
+                                }.onFailure {
+                                    Log.w(TAG, "encode tool result video failed: ${part.url}", it)
+                                    put("type", "text")
+                                    put("text", "Error: Failed to encode video to base64")
+                                }
+                            })
+                        }
+
+                        is UIMessagePart.Audio -> {
+                            add(buildJsonObject {
+                                part.encodeBase64().onSuccess { encodedAudio ->
+                                    put("type", "audio_url")
+                                    put("audio_url", buildJsonObject {
+                                        put("url", encodedAudio)
+                                    })
+                                }.onFailure {
+                                    Log.w(TAG, "encode tool result audio failed: ${part.url}", it)
+                                    put("type", "text")
+                                    put("text", "Error: Failed to encode audio to base64")
+                                }
+                            })
+                        }
+
+                        else -> {}
+                    }
+                }
+            }
+        }
 
     private fun parseMessage(jsonObject: JsonObject): UIMessage {
         val role = MessageRole.valueOf(

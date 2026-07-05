@@ -25,17 +25,21 @@ import kotlinx.serialization.json.putJsonArray
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.core.TokenUsage
+import me.rerere.ai.provider.ClaudePromptCacheTtl
 import me.rerere.ai.provider.ImageGenerationParams
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.Provider
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
-import me.rerere.ai.ui.ImageGenerationResult
+import me.rerere.ai.ui.ImageGenerationItem
 import me.rerere.ai.ui.MessageChunk
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessageChoice
+import me.rerere.ai.ui.ClaudeReasoningMetadata
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.ai.ui.metadataAs
+import me.rerere.ai.ui.toMetadata
 import me.rerere.ai.util.KeyRoulette
 import me.rerere.ai.util.configureReferHeaders
 import me.rerere.ai.util.encodeBase64
@@ -95,7 +99,7 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
     override suspend fun generateImage(
         providerSetting: ProviderSetting,
         params: ImageGenerationParams
-    ): ImageGenerationResult {
+    ): Flow<ImageGenerationItem> {
         error("Claude provider does not support image generation")
     }
 
@@ -263,12 +267,18 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
         params: TextGenerationParams,
         stream: Boolean = false
     ): JsonObject {
-        fun cacheControlEphemeral() = buildJsonObject { put("type", "ephemeral") }
-
         return buildJsonObject {
             put("model", params.model.modelId)
-            put("messages", buildMessages(messages, providerSetting.promptCaching))
+            put(
+                "messages",
+                buildMessages(messages, providerSetting.promptCaching, providerSetting.promptCacheTtl)
+            )
             put("max_tokens", params.maxTokens ?: 64_000)
+
+            // 顶层 cache_control: 让 Anthropic 自动管理缓存断点
+            if (providerSetting.promptCaching) {
+                put("cache_control", cacheControlEphemeral(providerSetting.promptCacheTtl))
+            }
 
             if (params.temperature != null && !params.reasoningLevel.isEnabled) put(
                 "temperature",
@@ -288,7 +298,7 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
                             put("type", "text")
                             put("text", part.text)
                             if (providerSetting.promptCaching && index == systemTextParts.lastIndex) {
-                                put("cache_control", cacheControlEphemeral())
+                                put("cache_control", cacheControlEphemeral(providerSetting.promptCacheTtl))
                             }
                         })
                     }
@@ -332,7 +342,7 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
                             put("description", tool.description)
                             put("input_schema", json.encodeToJsonElement(tool.parameters()))
                             if (providerSetting.promptCaching && index == params.tools.lastIndex) {
-                                put("cache_control", cacheControlEphemeral())
+                                put("cache_control", cacheControlEphemeral(providerSetting.promptCacheTtl))
                             }
                         })
                     }
@@ -341,7 +351,16 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
         }.mergeCustomBody(params.customBody)
     }
 
-    private fun buildMessages(messages: List<UIMessage>, promptCaching: Boolean) = buildJsonArray {
+    private fun cacheControlEphemeral(promptCacheTtl: ClaudePromptCacheTtl) = buildJsonObject {
+        put("type", "ephemeral")
+        promptCacheTtl.apiValue?.let { put("ttl", it) }
+    }
+
+    private fun buildMessages(
+        messages: List<UIMessage>,
+        promptCaching: Boolean,
+        promptCacheTtl: ClaudePromptCacheTtl
+    ) = buildJsonArray {
         messages
             .filter { it.isValidToUpload() && it.role != MessageRole.SYSTEM }
             .forEach { message ->
@@ -353,13 +372,16 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
             }
     }.let { messagesArray ->
         if (!promptCaching) return@let messagesArray
-        insertMessagesCacheControl(messagesArray)
+        insertMessagesCacheControl(messagesArray, promptCacheTtl)
     }
 
     /**
      * 在倒数第二条非 tool_result 的 user message 的最后一个 content block 上插入 cache_control
      */
-    private fun insertMessagesCacheControl(messages: JsonArray): JsonArray {
+    private fun insertMessagesCacheControl(
+        messages: JsonArray,
+        promptCacheTtl: ClaudePromptCacheTtl
+    ): JsonArray {
         // 找出所有非 tool_result 的 user message 的索引
         val realUserIndices = messages.mapIndexedNotNull { index, msg ->
             val obj = msg.jsonObject
@@ -384,12 +406,9 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
                 val content = obj["content"]?.jsonArray ?: return@mapIndexed msg
                 val newContent = JsonArray(content.mapIndexed { contentIndex, block ->
                     if (contentIndex == content.lastIndex) {
-                        JsonObject(block.jsonObject + mapOf("cache_control" to buildJsonObject {
-                            put(
-                                "type",
-                                "ephemeral"
-                            )
-                        }))
+                        JsonObject(
+                            block.jsonObject + mapOf("cache_control" to cacheControlEphemeral(promptCacheTtl))
+                        )
                     } else block
                 })
                 JsonObject(obj + mapOf("content" to newContent))
@@ -471,7 +490,7 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
         is UIMessagePart.Reasoning -> buildJsonObject {
             put("type", "thinking")
             put("thinking", reasoning)
-            metadata?.forEach { (key, value) -> put(key, value) }
+            metadataAs<ClaudeReasoningMetadata>()?.signature?.let { put("signature", it) }
         }
 
         else -> null
@@ -481,7 +500,7 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
         put("type", "tool_use")
         put("id", toolCallId)
         put("name", toolName)
-        put("input", json.parseToJsonElement(input.ifBlank { "{}" }))
+        put("input", inputAsJson())
     }
 
     private fun UIMessagePart.Tool.toToolResultBlock() = buildJsonObject {
@@ -517,9 +536,7 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
                             finishedAt = null
                         )
                         if (signature != null) {
-                            reasoning.metadata = buildJsonObject {
-                                put("signature", signature)
-                            }
+                            reasoning.metadata = ClaudeReasoningMetadata(signature = signature).toMetadata()
                         }
                         parts.add(reasoning)
                     }

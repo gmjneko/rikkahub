@@ -6,7 +6,7 @@ import kotlinx.serialization.json.JsonElement
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.core.Tool
 import me.rerere.ai.ui.ImageAspectRatio
-import me.rerere.ai.ui.ImageGenerationResult
+import me.rerere.ai.ui.ImageGenerationItem
 import me.rerere.ai.ui.MessageChunk
 import me.rerere.ai.ui.UIMessage
 
@@ -41,7 +41,14 @@ interface Provider<T : ProviderSetting> {
     suspend fun generateImage(
         providerSetting: ProviderSetting,
         params: ImageGenerationParams,
-    ): ImageGenerationResult
+    ): Flow<ImageGenerationItem>
+
+    suspend fun editImage(
+        providerSetting: ProviderSetting,
+        params: ImageEditParams,
+    ): Flow<ImageGenerationItem> {
+        error("Image edit is not supported")
+    }
 }
 
 @Serializable
@@ -62,6 +69,19 @@ data class ImageGenerationParams(
     val prompt: String,
     val numOfImages: Int = 1,
     val aspectRatio: ImageAspectRatio = ImageAspectRatio.SQUARE,
+    val partialImages: Int = 2,
+    val customHeaders: List<CustomHeader> = emptyList(),
+    val customBody: List<CustomBody> = emptyList(),
+)
+
+@Serializable
+data class ImageEditParams(
+    val model: Model,
+    val prompt: String,
+    val images: List<String>,
+    val numOfImages: Int = 1,
+    val aspectRatio: ImageAspectRatio = ImageAspectRatio.SQUARE,
+    val partialImages: Int = 2,
     val customHeaders: List<CustomHeader> = emptyList(),
     val customBody: List<CustomBody> = emptyList(),
 )

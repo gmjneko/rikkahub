@@ -139,19 +139,25 @@ val dataSourceModule = module {
     }
 
     single {
+        get<AppDatabase>().workspaceDao()
+    }
+
+    single {
+        get<AppDatabase>().folderDao()
+    }
+
+    single {
         MessageFtsManager(get())
     }
 
-    single { McpManager(settingsStore = get(), appScope = get(), filesManager = get()) }
+    single { McpManager(settingsStore = get(), appScope = get(), filesManager = get(), appEventBus = get()) }
 
     single {
         GenerationHandler(
             context = get(),
             providerManager = get(),
             json = get(),
-            memoryRepo = get(),
-            conversationRepo = get(),
-            aiLoggingManager = get()
+            memoryRepo = get()
         )
     }
 
@@ -179,7 +185,11 @@ val dataSourceModule = module {
             .addNetworkInterceptor { chain ->
                 val request = chain.request()
                 val contentTypeHeader = request.header("Content-Type")
-                if (contentTypeHeader != null && contentTypeHeader.contains(";")) {
+                if (
+                    contentTypeHeader != null &&
+                    contentTypeHeader.contains(";") &&
+                    contentTypeHeader.substringBefore(";").trim().equals("application/json", ignoreCase = true)
+                ) {
                     chain.proceed(
                         request.newBuilder()
                             .header("Content-Type", contentTypeHeader.substringBefore(";").trim())
