@@ -94,7 +94,8 @@ fun SearchPickerButton(
                 } else if (enableSearch && currentService != null) {
                     AutoAIIcon(
                         name = currentService.displayName,
-                        color = Color.Transparent
+                        color = Color.Transparent,
+                        contentPadding = 0.dp
                     )
                 } else {
                     Icon(
